@@ -1,0 +1,39 @@
+#! /bin/bash
+
+eren 's/-/_/g' *.log 
+
+echo -n 'Splitting IRSSI logs...'
+find . -maxdepth 1 -name '*.irssilog' -print0 | xargs -0 ~/bin/splitlogs.irssi
+echo 'Done'
+
+
+eren 's/-/_/g' *.xchatlog 
+
+echo -n 'Splitting X-Chat logs...'
+find . -maxdepth 1 -name '*.log' -print0 | xargs -0 ~/bin/splitlogs.xchat
+echo 'Done'
+
+for I in *.irssilog; do 
+	if [ -f "$I" ]; then
+		if (grep -v '^---' "$I" > /dev/null); then
+			echo Keeping "$I"
+		else
+			echo Removing "$I"
+			rm "$I"
+		fi
+	fi
+done
+
+for I in *.log; do 
+	if [ -f "$I" ]; then
+		if (fgrep -v '****' "$I" > /dev/null); then
+			echo Keeping "$I"
+		else
+			echo Removing "$I"
+			rm "$I"
+		fi
+	fi
+done
+
+mkdirs *-*.log
+mver *-*.log
