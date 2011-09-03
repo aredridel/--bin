@@ -1,0 +1,192 @@
+#!/usr/bin/perl -w
+#################################################
+# sarep 1.1 (991119) - Search and Replace tool  #
+# (C)1999 Matthew Borowski <mkb@worldserve.net> #
+# http://tarp.worldserve.net/software/          #
+# ftp://ftp.worldserve.net/pub/sarep/           #
+#################################################
+# Package dependencies:
+#   Text::CSV_XS used with the option -f to parse CSV files
+# ftp://ftp.cpan.org/pub/CPAN/modules/by-category/11_String_Lang_Text_Proc/Text/Text-CSV_XS-0.20.tar.gz
+#
+# Reads files one line at a time and modifies the text, supports regular
+# expressions. Works with wildcards, supports multiple files on command
+# line. Run sarep with no arguments for help.
+# 
+# Changes from 1.0 to 1.1:
+# Big thanks go once again to Andrey A. Chernov. Two patches by him:
+# * sarep will now maintain file creation date on files it does not
+#   modify. The previous code actually touched each file, thus resetting
+#   the file date.
+# * sarep now uses the perl locale support, so case insensitivity now 
+#   works with non-english languages as well
+#
+# Changelog from 0.5 to 1.0:
+#
+# * Nice new version number!
+# * New seperate -v (Verbose) and -vv (VeryVerbose) modes
+# * SAREP now preserves file permissions when modifying files
+# * TODO List: report number of changes made instead of number of 
+#   lines changed.
+#
+# Many Thanks to the Contributors:
+# Raphaël Rousseau <raph@alcove.fr>
+# Andrey A. Chernov <ache@nagual.pp.ru>
+# Doughnut <doughnut@doughnut.net>
+# Thanks to Bert Vermeulen and the #LinuxOS guys
+#
+# Comments/questions appreciated. No flames, I'm a newbie programmer
+# License: BSD License
+
+use strict;
+use locale;
+
+my ($renametonormal, $option, $searchfor, $replacewith, $fromfile, $patterns, $verbose, $veryverbose,
+$patternfile, $currentnum, $file, $occurrences, $line, $caseinsensitive, $escapemeta);
+#START
+#if no command-line argument, print usage info
+&helpinfo if ($#ARGV eq -1);
+
+# set defaults. If this gets any more complicated
+# consider switching to Getopt::Std or Getopt::Long.
+$renametonormal=1;    # Do we rename file to their initial name ?
+$caseinsensitive = 0; # Is the search case sensitive ?
+$escapemeta = 0;      # Do we escape metacharacters ?
+$fromfile = 0;        # Do we take search and replace strings from a CSV file ?
+$verbose = 0;         # Do we need verbosity ?
+$veryverbose = 0;     # Do we want to be very verbose?
+
+while (defined($ARGV[0]) && $ARGV[0] =~ /^-/) {
+  $option = shift @ARGV;
+  $renametonormal=0 if $option =~ /n/;
+  $caseinsensitive = 1 if $option =~ /i/;
+  $verbose = 1 if $option =~ /v/;
+  #Very verbose mode implies standard verbose mode as well
+  $verbose = 1 if $option =~ /vv/;
+  $veryverbose = 1 if $option =~ /vv/;
+  $escapemeta = 1 if $option =~ m#m#; 
+  if ($option =~ /f/) {
+  	$fromfile = 1;
+	$patternfile = shift @ARGV;
+	&helpinfo if (! -f $patternfile);
+  }
+  &helpinfo if ($option =~ /-[^vfinm]/) ;
+}
+
+if (!$fromfile) {
+	#check if they included a search-string, if not exit
+	&helpinfo if (!defined($searchfor = shift @ARGV));
+	
+	#check if they included a replace-string, if not exit
+	&helpinfo if (!defined($replacewith = shift @ARGV));
+
+	$patterns->{$searchfor} = $replacewith;
+} else {
+	require Text::CSV_XS;
+	my $csv = Text::CSV_XS->new({'binary' => 1});
+	my ($line);
+	open (PATTERN, $patternfile) || die "Cannot open pattern file $patternfile : $!";
+	while (defined ($line = <PATTERN>)) {
+		if ($csv->parse($line)) {
+			my @fields = $csv->fields;
+			$patterns->{$fields[0]} = $fields[1];
+		} else {
+			my $err = $csv->error_input;
+			die 'parse() failed in file '.$patternfile.' on argument: '.$err.'\n'; 
+		}
+	}
+}
+
+#check if they included at least ONE filename.
+&helpinfo if !defined($ARGV[0]);
+
+# Apply changes in each file
+while (defined($file = shift @ARGV)) {
+	&replace ($patterns, $file);
+}
+
+
+sub replace {
+	my ($patterns, $file) = @_;
+	my $fmode;
+	my $ftime;
+	my @st;
+	
+	
+	# prepare to count number of changes made.
+	$occurrences = 0;
+	
+	#print current file being sarep'ed.
+	print "Processing file $file:" if $verbose;
+	#open up the file, if it doesnt exist, print an error
+	open(INFILE, "<$file") || die("Error: $file $!");
+        if ($renametonormal) {
+                if (@st = (stat(*INFILE))) {
+                        $fmode = $st[2];
+			$ftime = $st[9];
+                } else {
+                        die("Error: can't stat $file: $!");
+                }
+        }
+	#now open up the filename with a .sarep extension.
+	open(OUTFILE,">$file\.sarep") || die("Error: unable to create temporary .sarep file");
+	
+	#while INFILE still has lines, make $_ equal to the line, then 
+	#search/replace it and write it to the OUTFILE. The $_ is removed from
+	#INFILE, so when you go through the loop again, the next line is done.
+	while(<INFILE>) {
+		$line = $_;
+		my ($searchfor, $replacewith);
+		foreach $searchfor (keys %$patterns) {
+			$replacewith = $patterns->{$searchfor};
+			$searchfor = quotemeta($searchfor) if $escapemeta;
+			$searchfor = '(?i)'.$searchfor if $caseinsensitive;
+			#print current line being sarep'ed.
+			print "\n \ts/$searchfor/$replacewith/g" if $veryverbose;
+			#print out what string is being searched for and replaced with, and if
+			#the results will be printed out to the filename, or to filename.sarep.
+			if($renametonormal) { print ", output directly to file(s)." if $veryverbose; } 
+			else { print ", output to .sarep file(s)." if $veryverbose; }
+			$occurrences++ if $line =~ s/$searchfor/$replacewith/g;
+		}
+			print OUTFILE $line;
+	}
+    
+	#close up the files...
+	close OUTFILE;
+	close INFILE;
+	
+	#if they didnt specify -n, then $renametonormal=1 (due to the if at the 
+	#top_. so go ahead and rename the .sarep file to the normal filename.
+	if($renametonormal){
+		rename "$file\.sarep",$file;
+                # chmod _after_ rename since rename clears s-bit on some system$
+                if (chmod ($fmode, "$file") != 1) {
+                        $fmode = sprintf "0%o", $fmode;
+                        die("Error: can't chmod $fmode $file: $!");
+                }
+		if ($occurrences == 0) {
+			if (utime (time, $ftime, "$file") != 1) {
+				die("Error: can't set times for $file: $!");
+			}
+		}
+	}
+
+        print "\n" if $veryverbose;
+	# I'd rather this said how many changes were made, but not tonight.
+	print " $occurrences lines altered.\n" if $verbose;
+}
+
+#subroutine to print help
+sub helpinfo {
+  print STDERR "usage: $0 <options> search-string replace-string filename(s)\n";
+  print STDERR "options:\n\t-n (create new files with .sarep extension)\n";
+  print STDERR "\t-i (performs the search as case-insensitive)\n";
+  print STDERR "\t-m (performs the search with metacharacters interpreted as normal ones)\n";
+  print STDERR "\t-f <name of file>(takes search and replace strings from the file)\n";
+  print STDERR "\t-v (verbose mode)\n";
+  print STDERR "\t-vv (very verbose mode)\n";
+  exit 1; # Exit with value different from 0 which means ERROR
+}
+
+#END
