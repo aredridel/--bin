@@ -1,0 +1,4 @@
+#!/bin/sh
+
+mkdir -p ~/web/"`date +%Y/%m`"
+ln -sfn `date +%Y/%m` ~/web/current
