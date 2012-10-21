@@ -1,0 +1,3 @@
+#!/bin/sh
+
+cat | (echo 0; xargs -n 1 echo +) | xargs | bc
