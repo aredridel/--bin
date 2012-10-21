@@ -1,0 +1,19 @@
+#!/bin/bash
+
+(
+	if [ -z $1 ]; then
+		find *.mp3 -print0
+	else 
+	 	find $* -print0
+	fi
+) | perl -e '
+	$/ = "\0";
+	while (<STDIN>) {
+		if(/(.*)-([^-]*)/) {
+			if(!$names{$1}) {
+				print($1 . $/);
+			}
+			$names{$1} = 1; # uniq
+		}
+	}
+' | xargs -0 --max-args=1000 mkdir -p

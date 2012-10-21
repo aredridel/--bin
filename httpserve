@@ -1,0 +1,20 @@
+#!/usr/bin/ruby -Ku
+
+
+Encoding.default_internal = Encoding.default_external=  "BINARY"
+
+require 'webrick'
+
+BasicSocket.do_not_reverse_lookup = true
+
+trap 'SIGTERM' do
+	throw :exit
+end
+
+trap 'SIGINT' do
+	throw :exit
+end
+
+catch :exit do
+	WEBrick::HTTPServer.new(:Port => (ARGV[2].to_i || 9090), :BindAddress => (ARGV[1] || '::'), :DocumentRoot => ARGV[0] || ".").start
+end

@@ -1,0 +1,17 @@
+#! /bin/bash
+
+if [ $# -ge 2 ]; then
+	REGEXP="$1"
+	shift
+
+	while [ -n "$1" ]; do
+		TO="$(echo $1 | perl -npe "$REGEXP;")"
+		if [ "$1" != "$TO" ]; then
+			mv -v -- "$1" "$TO"
+		fi
+		shift
+	done
+else
+	echo Usage: $0 regexp filenames
+fi
+

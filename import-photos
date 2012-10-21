@@ -1,0 +1,16 @@
+#!/bin/sh
+
+datedir=`date '+%Y-%m-%d--%H.%m.%S'`
+
+if [ -z "$1" ]; then
+	diskdir=/media/disk
+else
+	diskdir="$1"
+fi
+
+echo Date: $datedir
+
+mkdir ~/Photos/$datedir
+cd ~/Photos/$datedir
+sudo mv -iv "$diskdir"/{DCIM,100?????}/*/* .
+gthumb ~/Photos/$datedir
