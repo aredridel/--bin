@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+
+out = STDOUT.dup
+STDOUT.reopen('/dev/null')
+
+Dir.glob('RCS/*').each do |f|
+	if !system('rlog', '-h', f)
+		out.puts "Problem with #{f}"
+	end
+end

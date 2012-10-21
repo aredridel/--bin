@@ -1,0 +1,11 @@
+#!/bin/sh
+
+if [ ! -e "$1" ]; then
+	echo "$1 doesn't exist" 1>&2
+	exit 1
+fi
+
+rm -f RCS/"$1",v
+ci "$1" < /dev/null
+co "$1"
+chmod +w "$1"
