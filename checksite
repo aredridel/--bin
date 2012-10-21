@@ -1,0 +1,3 @@
+#! /bin/sh
+
+curl -m 60 "$1" 2>/dev/null | grep -qi '<html' || echo " down at `date`"
