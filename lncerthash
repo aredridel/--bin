@@ -1,0 +1,3 @@
+#!/bin/sh
+
+ln -s "$1" `openssl x509 -hash -noout -in "$1"`.0
